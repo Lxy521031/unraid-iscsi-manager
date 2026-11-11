@@ -195,9 +195,9 @@ var iSCSI = (function () {
         '<td><b>' + esc(b.name) + '</b>' + missing + '</td>' +
         '<td><code>' + esc(b.path) + '</code></td>' +
         '<td class="num right">' + esc(b.size_h) + '</td>' +
-        '<td class="muted">' + (b.write_back ? '回写' : '直写') + '</td>' +
+        '<td class="muted">' + (b.fua_compat ? '同步直写 · FUA 兼容' : (b.write_back ? '回写' : '直写')) + '</td>' +
         '<td>' + (used || status) + '</td>' +
-        '<td class="actions"><button type="button" class="btn btn-sm btn-ghost danger" data-act="del-backstore" data-type="' + attr(b.type) + '" data-name="' + attr(b.name) + '">删除</button></td>' +
+        '<td class="actions">' + (b.type === 'fileio' && b.io_mode === 'O_DSYNC' ? '<button type="button" class="btn btn-sm btn-ghost" data-act="fua-compat" data-name="' + attr(b.name) + '">' + (b.fua_compat ? '关闭 FUA 兼容' : '启用 FUA 兼容') + '</button>' : '') + '<button type="button" class="btn btn-sm btn-ghost danger" data-act="del-backstore" data-type="' + attr(b.type) + '" data-name="' + attr(b.name) + '">删除</button></td>' +
         '</tr>';
     });
     html += '</tbody></table></div></div>';
@@ -393,7 +393,7 @@ var iSCSI = (function () {
           '<div id="f-fileio">' +
             '<div class="fg"><label>镜像文件路径</label><input type="text" id="f-path" class="mono" value="/mnt/user/iscsi/" placeholder="/mnt/user/share/disk.img"></div>' +
             '<div class="fg"><div class="row"><div><label>容量（仅用于新建文件）</label><input type="text" id="f-size" class="mono" placeholder="500G"></div>' +
-            '<div><label>缓存</label><select id="f-wb"><option value="0">直写（较安全）</option><option value="1">回写（较快，断电时有数据丢失风险）</option></select></div></div></div>' +
+            '<div><label>缓存</label><select id="f-wb"><option value="0">直写（较安全）</option><option value="1">回写（较快，断电时有数据丢失风险）</option><option value="fua">同步直写＋FUA 兼容（Mac 每次写入模式）</option></select></div></div></div>' +
             '<p class="help">新建镜像为稀疏文件，实际占用空间随客户端写入增长。指定已有镜像可直接复用，并自动识别容量。</p>' +
           '</div>' +
           '<div id="f-block" style="display:none">' +
@@ -414,13 +414,22 @@ var iSCSI = (function () {
         },
         buttons: [{ label: '取消', cls: 'btn-outline' }, { label: '创建后端存储', onClick: function () {
           var type = val('f-type');
-          var p = { type: type, name: val('f-name'), write_back: val('f-wb') === '1' };
+          var p = { type: type, name: val('f-name'), write_back: val('f-wb') === '1', fua_compat: type === 'fileio' && val('f-wb') === 'fua' };
           if (!p.name) throw new Error('请输入名称');
           if (type === 'fileio') { p.path = val('f-path'); p.size = val('f-size'); if (!p.path || /\/$/.test(p.path)) throw new Error('请输入完整的镜像文件路径'); }
           else { p.path = val('f-dev'); p.readonly = checked('f-ro'); if (!p.path) throw new Error('请选择设备'); }
           return runIn('create_backstore', p, '后端存储已创建');
         } }]
       });
+    },
+
+    'fua-compat': function (d) {
+      var b = state.backstores.filter(function (x) { return x.type === 'fileio' && x.name === d.name; })[0];
+      if (!b) return;
+      confirmModal(b.fua_compat ? '关闭 FUA 兼容' : '启用 FUA 兼容',
+        '<p>修改 <b>' + esc(b.name) + '</b> 的 FUA 能力声明，实际镜像写入仍保持同步直写（O_DSYNC）。请先在客户端断开此磁盘；修改后重新连接。</p>' +
+        '<p>启用后可配合 Mac 客户端的“On every write — safest”。镜像内容不会清除。</p>',
+        '确认修改', function () { return api('set_fua_compat', { name: b.name, enabled: !b.fua_compat }); });
     },
 
     'del-backstore': function (d) {

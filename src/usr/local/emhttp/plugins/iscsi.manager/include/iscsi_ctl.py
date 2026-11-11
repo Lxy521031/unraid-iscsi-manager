@@ -22,6 +22,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import traceback
 
 LOCK_FILE = '/var/run/iscsi.manager.lock'
@@ -150,10 +151,11 @@ def block_candidates():
 
 def dynamic_sessions(tpg):
     names = []
-    for line in read_file(os.path.join(tpg.path, 'dynamic_sessions')).splitlines():
+    # LIO includes a trailing NUL in this configfs attribute's reported length.
+    for line in read_file(os.path.join(tpg.path, 'dynamic_sessions')).replace('\x00', '\n').splitlines():
         line = line.strip()
-        if line:
-            names.append(line.split()[-1] if ':' in line else line)
+        if line and line not in names:
+            names.append(line)
     return names
 
 
@@ -170,6 +172,23 @@ def session_info(acl):
             'state': sess.get('state'), 'connections': conns}
 
 
+def fileio_mode(so):
+    info = read_file(os.path.join(so.path, 'info'))
+    match = re.search(r'\bMode:\s*(\S+)', info)
+    return match.group(1) if match else None
+
+
+def config_dump(root):
+    config = root.dump()
+    modes = {so.name: fileio_mode(so) for so in root.storage_objects if so.plugin == 'fileio'}
+    for item in config.get('storage_objects', []):
+        if item.get('plugin') == 'fileio' and modes.get(item['name']) == 'O_DSYNC':
+            # rtslib derives write_back from advertised WCE, not fd_buffered_io.
+            # Keep the actual O_DSYNC mode on restore, then restore WCE/FUA attrs.
+            item['write_back'] = False
+    return config
+
+
 def gather_state():
     lib = rtslib()
     root = lib.RTSRoot()
@@ -184,6 +203,11 @@ def gather_state():
         }
         if so.plugin == 'fileio':
             entry['exists'] = os.path.exists(entry['path'])
+            entry['io_mode'] = fileio_mode(so)
+            entry['write_back'] = entry['io_mode'] == 'Buffered-WCE'
+            entry['fua_compat'] = (entry['io_mode'] == 'O_DSYNC' and
+                                   int(so.get_attribute('emulate_write_cache')) == 1 and
+                                   int(so.get_attribute('emulate_fua_write')) == 1)
         so_index['/backstores/%s/%s' % (so.plugin, so.name)] = entry
         backstores.append(entry)
 
@@ -236,7 +260,7 @@ def gather_state():
         targets.append({'wwn': tgt.wwn, 'tpgs': tpgs})
 
     try:
-        live = json.dumps(root.dump(), sort_keys=True)
+        live = json.dumps(config_dump(root), sort_keys=True)
         saved_doc = json.loads(read_file(SAVE_FILE, 'null'))
         saved = saved_doc is not None and json.dumps(saved_doc, sort_keys=True) == live
     except Exception:
@@ -287,7 +311,34 @@ def find_acl(tpg, initiator):
 
 
 def save(root):
-    root.save_to_file(SAVE_FILE)
+    # Write through the existing symlink to the flash drive, atomically.
+    path = os.path.realpath(SAVE_FILE)
+    fd, temp = tempfile.mkstemp(prefix='.iscsi-manager-', dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, 'w') as fh:
+            json.dump(config_dump(root), fh, sort_keys=True, indent=2)
+            fh.write('\n')
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(temp, path)
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
+def set_fua_compat(so, enabled):
+    if so.plugin != 'fileio' or fileio_mode(so) != 'O_DSYNC':
+        raise UserError('FUA 兼容仅适用于同步直写（O_DSYNC）的镜像后端；不会将回写模式自动转换为直写')
+    old = {k: so.get_attribute(k) for k in ('emulate_fua_write', 'emulate_write_cache')}
+    try:
+        so.set_attribute('emulate_fua_write', 1)
+        so.set_attribute('emulate_write_cache', int(enabled))
+        if fileio_mode(so) != 'O_DSYNC':
+            raise UserError('后端同步直写模式校验失败')
+    except Exception:
+        for key, value in old.items():
+            so.set_attribute(key, value)
+        raise
 
 
 def map_lun_to_all_acls(lib, tpg, lun):
@@ -392,7 +443,15 @@ def act_create_backstore(lib, root, p):
                 free = None
             if free is not None and size > free and not p.get('allow_overcommit', True):
                 raise UserError('可用空间不足：需要 %s，剩余 %s' % (human(size), human(free)))
-        lib.FileIOStorageObject(name, dev=path, size=size, write_back=write_back)
+        if write_back and p.get('fua_compat'):
+            raise UserError('FUA 兼容必须使用同步直写模式')
+        so = lib.FileIOStorageObject(name, dev=path, size=size, write_back=write_back)
+        if p.get('fua_compat'):
+            try:
+                set_fua_compat(so, True)
+            except Exception:
+                so.delete()  # retain the image file
+                raise
     elif btype == 'block':
         if not os.path.exists(path):
             raise UserError('设备 %s 不存在' % path)
@@ -403,6 +462,16 @@ def act_create_backstore(lib, root, p):
                                write_back=write_back)
     else:
         raise UserError('未知的后端存储类型')
+
+
+def act_set_fua_compat(lib, root, p):
+    name = need(p, 'name', RE_NAME, '后端存储名称')
+    so = find_so(root, 'fileio', name)
+    for lun in so.attached_luns:
+        tpg = lun.parent_tpg
+        if dynamic_sessions(tpg) or any(session_info(acl) for acl in tpg.node_acls):
+            raise UserError('请先断开使用此后端存储的客户端，再修改 FUA 兼容设置')
+    set_fua_compat(so, bool(p.get('enabled', True)))
 
 
 def act_delete_backstore(lib, root, p):
@@ -550,6 +619,7 @@ MUTATIONS = {
     'set_mode': act_set_mode,
     'set_enabled': act_set_enabled,
     'create_backstore': act_create_backstore,
+    'set_fua_compat': act_set_fua_compat,
     'delete_backstore': act_delete_backstore,
     'add_lun': act_add_lun,
     'delete_lun': act_delete_lun,

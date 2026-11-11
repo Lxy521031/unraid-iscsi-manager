@@ -3,16 +3,16 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name       "iscsi.manager">
 <!ENTITY author     "brainchill">
-<!ENTITY version    "2026.11.11.1">
+<!ENTITY version    "2026.11.11.3">
 <!ENTITY launch     "Settings/iSCSIManager">
 <!-- The .plg lives in the repo (stable URL for update checks); the package is a GitHub release asset. -->
-<!ENTITY gitURL     "https://raw.githubusercontent.com/Lxy521031/unraid-iscsi-manager/feat/simplified-chinese">
+<!ENTITY gitURL     "https://raw.githubusercontent.com/Lxy521031/unraid-iscsi-manager/fix/fua-persistence-session-count">
 <!ENTITY releaseURL "https://github.com/Lxy521031/unraid-iscsi-manager/releases/download/&version;">
 <!ENTITY pluginURL  "&gitURL;/&name;.plg">
 <!ENTITY supportURL "https://github.com/Lxy521031/unraid-iscsi-manager">
 <!ENTITY plugin     "/boot/config/plugins/&name;">
 <!ENTITY emhttp     "/usr/local/emhttp/plugins/&name;">
-<!ENTITY packageMD5 "cd80a6e471c6c6f5b7453322b00c09dc">
+<!ENTITY packageMD5 "b10e1121bc9418fbd4c3909d1b1116e8">
 ]>
 
 <PLUGIN name="&name;"
@@ -25,6 +25,15 @@
         min="6.12.0">
 
 <CHANGES>
+###2026.11.11.3
+- 缓存顺序调整为直写、回写、同步直写＋FUA 兼容。
+- 修正内置 rtslib：targetcli 保存配置按实际 fileio 模式判断，保留同步直写。
+- 过滤动态会话末尾空字符，修复单个客户端被显示为两条的问题。
+
+###2026.11.11.2
+- 新增同步直写镜像的 FUA 兼容选项，支持 Mac 客户端每次写入模式。
+- 按实际 I/O 模式显示和保存缓存配置，避免恢复时将同步直写误转为回写。
+
 ###2026.11.11.1
 - 简体中文界面、操作提示、访问控制和输入错误说明。
 - 保留 Unraid 系统 Python，插件单独使用 Python 3.9。

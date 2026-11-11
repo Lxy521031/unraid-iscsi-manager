@@ -81,6 +81,9 @@ print('patched', os.path.basename(egg))
 PY
 find "$STAGE" -type d -empty -delete
 
+# Preserve actual fileio mode for targetcli/targetctl as well as the web UI.
+python3 -I scripts/patch_rtslib.py "$SP"/rtslib_fb-*.egg
+
 # ---- 3. overlay our plugin files ----------------------------------------------
 echo "$VER" > "$PLUGDIR/VERSION"
 chmod +x "$PLUGDIR"/event/* "$PLUGDIR"/include/iscsi_ctl.py

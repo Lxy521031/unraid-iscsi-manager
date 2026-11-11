@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $allowed = [
     'state', 'create_target', 'delete_target', 'set_mode', 'set_enabled',
-    'create_backstore', 'delete_backstore', 'add_lun', 'delete_lun',
+    'create_backstore', 'delete_backstore', 'set_fua_compat', 'add_lun', 'delete_lun',
     'add_acl', 'delete_acl', 'set_chap', 'set_mapped_lun_wp',
     'add_portal', 'delete_portal', 'saveconfig', 'restoreconfig',
 ];
