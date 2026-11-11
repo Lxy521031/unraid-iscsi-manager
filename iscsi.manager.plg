@@ -3,16 +3,16 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name       "iscsi.manager">
 <!ENTITY author     "brainchill">
-<!ENTITY version    "2026.10.19">
+<!ENTITY version    "2026.11.11.1">
 <!ENTITY launch     "Settings/iSCSIManager">
 <!-- The .plg lives in the repo (stable URL for update checks); the package is a GitHub release asset. -->
-<!ENTITY gitURL     "https://raw.githubusercontent.com/brainchillz/unraid-iscsi-manager/main">
-<!ENTITY releaseURL "https://github.com/brainchillz/unraid-iscsi-manager/releases/download/&version;">
+<!ENTITY gitURL     "https://raw.githubusercontent.com/Lxy521031/unraid-iscsi-manager/feat/simplified-chinese">
+<!ENTITY releaseURL "https://github.com/Lxy521031/unraid-iscsi-manager/releases/download/&version;">
 <!ENTITY pluginURL  "&gitURL;/&name;.plg">
-<!ENTITY supportURL "https://github.com/brainchillz/unraid-iscsi-manager">
+<!ENTITY supportURL "https://github.com/Lxy521031/unraid-iscsi-manager">
 <!ENTITY plugin     "/boot/config/plugins/&name;">
 <!ENTITY emhttp     "/usr/local/emhttp/plugins/&name;">
-<!ENTITY packageMD5 "9bae4f5b93454dd0b49cecabfa1da90c">
+<!ENTITY packageMD5 "cd80a6e471c6c6f5b7453322b00c09dc">
 ]>
 
 <PLUGIN name="&name;"
@@ -25,6 +25,10 @@
         min="6.12.0">
 
 <CHANGES>
+###2026.11.11.1
+- 简体中文界面、操作提示、访问控制和输入错误说明。
+- 保留 Unraid 系统 Python，插件单独使用 Python 3.9。
+
 ###2026.10.19
 - Initial release: single-page iSCSI target manager built on rtslib.
 - Targets, LUNs, initiator ACLs, CHAP, portals, backstores (fileio / block), live sessions.
@@ -43,20 +47,20 @@
 set -u
 log() { echo "$*"; logger -t &name; -- "$*"; }
 echo "+==============================================================================="
-echo "| Installing &name; &version;"
+echo "| 正在安装 &name; &version;"
 echo "+==============================================================================="
 
 # 1. Kernel target (LIO) support: load the modules Unraid ships and mount configfs.
 if ! modprobe -q configfs target_core_mod iscsi_target_mod target_core_file target_core_iblock 2>/dev/null; then
-  log "WARNING: could not load the LIO kernel modules; this kernel may lack iSCSI target support"
+  log "警告：无法加载 LIO 内核模块；当前内核可能不支持 iSCSI 目标"
 fi
 mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config 2>/dev/null || true
 
 # 2. Runtime self-check (python + rtslib + targetcli are inside this package).
-if RTV=$(/usr/bin/python3 -c 'import rtslib_fb, ctypes, targetcli; print(rtslib_fb.__version__)' 2>/dev/null) &amp;&amp; [ -x /usr/bin/targetcli ]; then
-  echo "iSCSI runtime OK (targetcli 2.1.54, rtslib $RTV)"
+if RTV=$(/usr/bin/python3.9 -I -c 'import rtslib_fb, ctypes, targetcli; print(rtslib_fb.__version__)' 2>/dev/null) &amp;&amp; [ -x /usr/bin/targetcli ]; then
+  echo "iSCSI 运行环境正常 (targetcli 2.1.54, rtslib $RTV)"
 else
-  log "ERROR: the bundled iSCSI runtime does not work on this system; the manager page will report this"
+  log "错误：内置 iSCSI 运行环境无法启动，请查看管理页面和系统日志"
 fi
 
 # 3. Persistent configuration on the flash drive. Same paths as unraid.iSCSI so an
@@ -79,7 +83,7 @@ chmod +x &emhttp;/event/* &emhttp;/include/iscsi_ctl.py 2>/dev/null
 if [ -n "$(pidof emhttpd)" ] &amp;&amp; grep -q '^fsState="Started"' /var/local/emhttp/var.ini 2>/dev/null \
    &amp;&amp; [ -s /etc/target/saveconfig.json ] \
    &amp;&amp; [ -z "$(ls /sys/kernel/config/target/iscsi 2>/dev/null | grep '^iqn')" ]; then
-  log "Restoring saved iSCSI configuration"
+  log "正在恢复已保存的 iSCSI 配置"
   /usr/bin/targetcli restoreconfig 2>&amp;1 | logger -t &name;
 fi
 
@@ -88,9 +92,9 @@ rm -f $(ls &plugin;/&name;-*.txz 2>/dev/null | grep -v '&version;')
 
 echo ""
 echo "-----------------------------------------------------------"
-echo " &name; has been installed."
-echo " Version: &version;"
-echo " Open Settings > iSCSI Manager."
+echo " &name; 已安装。"
+echo " 版本： &version;"
+echo " 请打开 设置 > iSCSI 管理器。"
 echo "-----------------------------------------------------------"
 echo ""
 </INLINE>
@@ -98,7 +102,7 @@ echo ""
 
 <FILE Run="/bin/bash" Method="remove">
 <INLINE>
-echo "Removing &name;"
+echo "正在卸载 &name;"
 # removepkg leaves any file that another installed package also owns (e.g. the
 # unraid.iSCSI runtime), so coexisting installs stay intact. The live iSCSI
 # configuration is in the kernel and is never touched: connected hosts keep
@@ -107,11 +111,11 @@ removepkg &name;-&version; >/dev/null 2>&amp;1
 rm -rf &emhttp;
 rm -rf &plugin;
 # removepkg only drops symlinks declared in doinst.sh; clean up ours if dangling
-for l in /usr/bin/python3 /usr/lib64/libffi.so.7 /root/.targetcli/prefs.bin; do
+for l in /usr/lib64/libffi.so.7 /root/.targetcli/prefs.bin; do
   [ -L "$l" ] &amp;&amp; [ ! -e "$l" ] &amp;&amp; rm -f "$l"
 done
 rmdir /root/.targetcli 2>/dev/null
-echo "&name; has been removed. The saved iSCSI configuration in /boot/config/iscsi was kept."
+echo "&name; 已卸载。/boot/config/iscsi 中的配置已保留。"
 </INLINE>
 </FILE>
 

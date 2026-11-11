@@ -46,6 +46,10 @@ rm -rf "$STAGE"/usr/include "$STAGE"/usr/share "$STAGE"/usr/man "$STAGE"/usr/doc
 ( cd "$STAGE/usr/bin" && rm -f 2to3* easy_install* g-ir-* idle3* pip3* pydoc3* python3-config python3.9-config )
 find "$STAGE" -name '*.pyc' -path '*/__pycache__/*' -name '*.opt-*' -delete   # keep plain .pyc, drop -O variants
 
+# Preserve Unraid 7.x's system Python (3.12) and explicitly bind this runtime.
+rm -f "$STAGE/usr/bin/python3"
+sed -i '1s|^#!/usr/bin/python3$|#!/usr/bin/python3.9|' "$STAGE"/usr/bin/targetcli "$STAGE"/usr/bin/targetctl "$STAGE"/usr/bin/targetclid
+
 # ---- 2b. make targetcli's gi (GObject) import optional ------------------------
 # targetcli only uses gi/Gio to talk to tcmu-runner over D-Bus for user-space
 # backstores, which Unraid does not have. Without this patch `import targetcli`

@@ -19,7 +19,7 @@ function reply($data, $code = 200) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    reply(['ok' => false, 'error' => 'POST required'], 405);
+    reply(['ok' => false, 'error' => '必须使用 POST 请求'], 405);
 }
 
 $allowed = [
@@ -31,26 +31,26 @@ $allowed = [
 
 $action = $_POST['action'] ?? '';
 if (!in_array($action, $allowed, true)) {
-    reply(['ok' => false, 'error' => 'Unknown action'], 400);
+    reply(['ok' => false, 'error' => '未知操作'], 400);
 }
 
 $params = [];
 if (isset($_POST['params']) && $_POST['params'] !== '') {
     $params = json_decode($_POST['params'], true);
     if (!is_array($params)) {
-        reply(['ok' => false, 'error' => 'params must be a JSON object'], 400);
+        reply(['ok' => false, 'error' => 'params 必须为 JSON 对象'], 400);
     }
 }
 
 $helper = "$docroot/plugins/$plugin/include/iscsi_ctl.py";
 if (!is_file($helper)) {
-    reply(['ok' => false, 'error' => 'Helper script missing'], 500);
+    reply(['ok' => false, 'error' => '缺少控制脚本'], 500);
 }
 
 $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-$proc = proc_open(['/usr/bin/python3', '-I', $helper], $spec, $pipes, '/', ['PATH' => '/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin']);
+$proc = proc_open(['/usr/bin/python3.9', '-I', $helper], $spec, $pipes, '/', ['PATH' => '/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin']);
 if (!is_resource($proc)) {
-    reply(['ok' => false, 'error' => 'Could not start helper'], 500);
+    reply(['ok' => false, 'error' => '无法启动控制脚本'], 500);
 }
 fwrite($pipes[0], json_encode(['action' => $action, 'params' => $params]));
 fclose($pipes[0]);
@@ -62,7 +62,7 @@ $rc = proc_close($proc);
 
 $data = json_decode($stdout, true);
 if (!is_array($data)) {
-    reply(['ok' => false, 'error' => 'Helper returned no JSON (exit ' . $rc . ')',
+    reply(['ok' => false, 'error' => '控制脚本未返回 JSON（退出码 ' . $rc . '）',
            'stderr' => substr($stderr, -2000), 'stdout' => substr($stdout, -2000)], 500);
 }
 if ($rc !== 0 && !isset($data['ok'])) {

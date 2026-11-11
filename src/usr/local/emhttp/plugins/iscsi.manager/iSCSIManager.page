@@ -1,6 +1,6 @@
 Menu="Utilities"
 Type="xmenu"
-Title="iSCSI Manager"
+Title="iSCSI 管理器"
 Icon="iscsi.png"
 Tag="hdd-o"
 ---
@@ -23,14 +23,14 @@ $array_started = ($var['fsState'] ?? '') === 'Started';
 
 <div id="iscsi-app" class="iscsi-app" data-version="<?=htmlspecialchars($pkg_ver)?>" data-array="<?=$array_started ? 'started' : 'stopped'?>" data-hostname="<?=htmlspecialchars(gethostname())?>">
 <?if (!$runtime):?>
-<div class="iscsi-notice warn"><b>The iSCSI runtime (targetcli / rtslib) is not installed.</b> Reinstall the plugin, or check the system log for the package download error.</div>
+<div class="iscsi-notice warn"><b>尚未安装 iSCSI 运行环境（targetcli / rtslib）。</b> 请重新安装插件，或在系统日志中检查软件包下载错误。</div>
 <?elseif (!$configfs):?>
-<div class="iscsi-notice warn"><b>The kernel target modules are not available.</b> This Unraid kernel does not include LIO target support.</div>
+<div class="iscsi-notice warn"><b>内核目标模块不可用。</b> 当前 Unraid 内核不包含 LIO 目标支持。</div>
 <?else:?>
 <?if (!$array_started):?>
-<div class="iscsi-notice info">The array is not started. Image files on the array are unavailable until it starts, and the saved configuration is restored when the array comes up.</div>
+<div class="iscsi-notice info">阵列尚未启动。启动前无法使用阵列上的镜像文件；阵列启动后会恢复已保存的配置。</div>
 <?endif;?>
-<div id="iscsi-root"><div class="iscsi-loading"><span class="spinner"></span> Loading iSCSI configuration&hellip;</div></div>
+<div id="iscsi-root"><div class="iscsi-loading"><span class="spinner"></span> 正在加载 iSCSI 配置&hellip;</div></div>
 <script>
 $(function(){ iSCSI.init(document.getElementById('iscsi-app')); });
 </script>

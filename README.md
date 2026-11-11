@@ -1,3 +1,5 @@
+[简体中文安装与使用说明](README.zh-CN.md)
+
 # iSCSI Manager for Unraid
 
 A single-page iSCSI target manager for Unraid 6.12+ / 7.x. One plugin, one
