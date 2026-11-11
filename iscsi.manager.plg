@@ -3,7 +3,7 @@
 <!DOCTYPE PLUGIN [
 <!ENTITY name       "iscsi.manager">
 <!ENTITY author     "brainchill">
-<!ENTITY version    "2026.11.11.3">
+<!ENTITY version    "2026.11.11.4">
 <!ENTITY launch     "Settings/iSCSIManager">
 <!-- The .plg lives in the repo (stable URL for update checks); the package is a GitHub release asset. -->
 <!ENTITY gitURL     "https://raw.githubusercontent.com/Lxy521031/unraid-iscsi-manager/fix/fua-persistence-session-count">
@@ -12,7 +12,7 @@
 <!ENTITY supportURL "https://github.com/Lxy521031/unraid-iscsi-manager">
 <!ENTITY plugin     "/boot/config/plugins/&name;">
 <!ENTITY emhttp     "/usr/local/emhttp/plugins/&name;">
-<!ENTITY packageMD5 "b10e1121bc9418fbd4c3909d1b1116e8">
+<!ENTITY packageMD5 "46db4163aaa3d8921dd840620c00895a">
 ]>
 
 <PLUGIN name="&name;"
@@ -25,6 +25,11 @@
         min="6.12.0">
 
 <CHANGES>
+###2026.11.11.4
+- 表单说明收为字段旁的 ⓘ 悬停提示，简化选项文字。
+- 新建镜像可勾选自动创建已挂载存储中的缺失父目录。
+- 构建时保留旧版本安装包，补充 11.11.2 未独立发布的历史说明。
+
 ###2026.11.11.3
 - 缓存顺序调整为直写、回写、同步直写＋FUA 兼容。
 - 修正内置 rtslib：targetcli 保存配置按实际 fileio 模式判断，保留同步直写。

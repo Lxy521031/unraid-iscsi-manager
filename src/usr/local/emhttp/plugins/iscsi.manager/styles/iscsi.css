@@ -465,3 +465,19 @@
   margin-right: 6px;
 }
 @keyframes is-spin { to { transform: rotate(360deg); } }
+
+/* Compact field help; native tooltips stay within the browser viewport. */
+.is-modal .is-hint {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--is-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+}
+.is-modal .is-hint:focus-visible {
+  outline: 1px solid var(--is-primary);
+  outline-offset: 3px;
+  border-radius: 50%;
+}

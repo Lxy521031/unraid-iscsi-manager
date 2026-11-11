@@ -19,6 +19,9 @@ var iSCSI = (function () {
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function attr(s) { return esc(s); }
+  function hint(text) {
+    return '<span class="is-hint" tabindex="0" role="img" aria-label="' + attr(text) + '" title="' + attr(text) + '">ⓘ</span>';
+  }
   function el(id) { return document.getElementById(id); }
   function shortName(iqn) {
     var i = iqn.indexOf(':');
@@ -330,8 +333,7 @@ var iSCSI = (function () {
       modal({
         title: '创建 iSCSI 目标',
         body:
-          '<div class="fg"><label>目标 IQN</label><input type="text" id="f-iqn" class="mono" value="' + attr(iqnDefault()) + '" placeholder="iqn.YYYY-MM.reversed.domain:name"></div>' +
-          '<p class="help">留空可由 LIO 自动生成名称。请使用小写英文字母、数字、点、连字符和冒号。</p>' +
+          '<div class="fg"><label>目标 IQN ' + hint('留空自动生成；可用小写字母、数字、点、连字符和冒号。') + '</label><input type="text" id="f-iqn" class="mono" value="' + attr(iqnDefault()) + '" placeholder="iqn.YYYY-MM.reversed.domain:name"></div>' +
           '<div class="fg"><label>访问模式</label><select id="f-mode">' +
             '<option value="restricted">受限：仅允许 ACL 中的客户端连接</option>' +
             '<option value="shared">共享：任意客户端均可连接和写入（集群）</option>' +
@@ -386,20 +388,19 @@ var iSCSI = (function () {
         title: '创建后端存储',
         body:
           '<div class="fg"><label>类型</label><select id="f-type">' +
-            '<option value="fileio">镜像文件（fileio）：共享目录中的文件，按需分配空间</option>' +
-            '<option value="block">块设备：整块未分配磁盘或分区</option>' +
+            '<option value="fileio">镜像文件（fileio）</option>' +
+            '<option value="block">块设备（block）</option>' +
           '</select></div>' +
           '<div class="fg"><label>名称</label><input type="text" id="f-name" class="mono" placeholder="vmstore" maxlength="64"></div>' +
           '<div id="f-fileio">' +
-            '<div class="fg"><label>镜像文件路径</label><input type="text" id="f-path" class="mono" value="/mnt/user/iscsi/" placeholder="/mnt/user/share/disk.img"></div>' +
-            '<div class="fg"><div class="row"><div><label>容量（仅用于新建文件）</label><input type="text" id="f-size" class="mono" placeholder="500G"></div>' +
-            '<div><label>缓存</label><select id="f-wb"><option value="0">直写（较安全）</option><option value="1">回写（较快，断电时有数据丢失风险）</option><option value="fua">同步直写＋FUA 兼容（Mac 每次写入模式）</option></select></div></div></div>' +
-            '<p class="help">新建镜像为稀疏文件，实际占用空间随客户端写入增长。指定已有镜像可直接复用，并自动识别容量。</p>' +
+            '<div class="fg"><label>镜像文件路径 ' + hint('填写完整文件名，例如 /mnt/zpool/iscsi/disk.img。已有镜像可直接复用。') + '</label><input type="text" id="f-path" class="mono" value="/mnt/user/iscsi/" placeholder="/mnt/user/share/disk.img"></div>' +
+            '<div class="fg inline"><input type="checkbox" id="f-create-parent"><label for="f-create-parent">自动创建父目录</label>' + hint('仅在已挂载存储中创建，可建多级目录。创建失败时已建目录会保留。') + '</div>' +
+            '<div class="fg"><div class="row"><div><label>容量 ' + hint('仅用于新镜像。实际占用随写入增长，请保留足够空间。') + '</label><input type="text" id="f-size" class="mono" placeholder="500G"></div>' +
+            '<div><label>缓存 ' + hint('直写：同步写入。回写：速度可能更快，但断电可能丢数据。FUA 兼容：配合 Mac 的每次写入策略，仍保持同步直写。') + '</label><select id="f-wb"><option value="0">直写（较安全）</option><option value="1">回写</option><option value="fua">同步直写＋FUA 兼容</option></select></div></div></div>' +
           '</div>' +
           '<div id="f-block" style="display:none">' +
-            '<div class="fg"><label>设备</label><select id="f-dev">' + (devOpts || '<option value="">没有空闲设备</option>') + (busyOpts ? '<optgroup label="正在使用">' + busyOpts + '</optgroup>' : '') + '</select></div>' +
+            '<div class="fg"><label>设备 ' + hint('客户端格式化会覆盖设备上的数据。阵列、存储池和启动盘不可选。') + '</label><select id="f-dev">' + (devOpts || '<option value="">没有空闲设备</option>') + (busyOpts ? '<optgroup label="正在使用">' + busyOpts + '</optgroup>' : '') + '</select></div>' +
             '<div class="fg inline"><input type="checkbox" id="f-ro"><label for="f-ro">以只读方式提供</label></div>' +
-            '<p class="help">整个设备将原样交给客户端使用。客户端创建文件系统会覆盖设备上的已有内容。阵列、存储池及启动 U 盘中的设备不可选。</p>' +
           '</div>',
         onOpen: function () {
           el('f-type').addEventListener('change', function () {
@@ -416,7 +417,7 @@ var iSCSI = (function () {
           var type = val('f-type');
           var p = { type: type, name: val('f-name'), write_back: val('f-wb') === '1', fua_compat: type === 'fileio' && val('f-wb') === 'fua' };
           if (!p.name) throw new Error('请输入名称');
-          if (type === 'fileio') { p.path = val('f-path'); p.size = val('f-size'); if (!p.path || /\/$/.test(p.path)) throw new Error('请输入完整的镜像文件路径'); }
+          if (type === 'fileio') { p.path = val('f-path'); p.size = val('f-size'); p.create_parent = checked('f-create-parent'); if (!p.path || /\/$/.test(p.path)) throw new Error('请输入完整的镜像文件路径'); }
           else { p.path = val('f-dev'); p.readonly = checked('f-ro'); if (!p.path) throw new Error('请选择设备'); }
           return runIn('create_backstore', p, '后端存储已创建');
         } }]
@@ -460,8 +461,7 @@ var iSCSI = (function () {
       modal({
         title: '将后端存储挂接为 LUN',
         body: '<p class="muted mono">' + esc(d.wwn) + '</p>' +
-          '<div class="fg"><label>后端存储</label><div class="checklist">' + (items || '<label class="off">还没有后端存储</label>') + '</div></div>' +
-          '<p class="help">每个选中的后端存储都会成为独立 LUN，自动编号并映射给现有的全部客户端 ACL。只有使用支持集群的文件系统，才能安全地在多个目标之间共享同一后端存储。</p>',
+          '<div class="fg"><label>后端存储 ' + hint('每项分配一个 LUN，并映射给现有 ACL。多机共享写入需要集群文件系统。') + '</label><div class="checklist">' + (items || '<label class="off">还没有后端存储</label>') + '</div></div>',
         buttons: [{ label: '取消', cls: 'btn-outline' }, { label: '挂接', onClick: function () {
           var sel = Array.prototype.map.call(document.querySelectorAll('input[name=f-bs]:checked'), function (x) { return x.value; });
           if (!sel.length) throw new Error('请至少选择一个后端存储');
@@ -482,8 +482,7 @@ var iSCSI = (function () {
       modal({
         title: '添加客户端 ACL',
         body: '<p class="muted mono">' + esc(d.wwn) + '</p>' +
-          '<div class="fg"><label>客户端 IQN</label><input type="text" id="f-init" class="mono" list="f-init-list" value="' + attr(d.init || '') + '" placeholder="iqn.1998-01.com.vmware:esxi01-12345678"><datalist id="f-init-list">' + known.map(function (x) { return '<option value="' + attr(x) + '">'; }).join('') + '</datalist></div>' +
-          '<p class="help">可在客户端查找 IQN：ESXi 的<i>存储 &rsaquo; 适配器 &rsaquo; iSCSI</i>，Proxmox/Linux 的 <code>/etc/iscsi/initiatorname.iscsi</code>，Windows 的 <i>iSCSI 发起程序 &rsaquo; 配置</i>。现有全部 LUN 会映射到新 ACL。</p>',
+          '<div class="fg"><label>客户端 IQN ' + hint('在客户端的 iSCSI 设置中查找；Linux 可查看 /etc/iscsi/initiatorname.iscsi。现有 LUN 会映射给此客户端。') + '</label><input type="text" id="f-init" class="mono" list="f-init-list" value="' + attr(d.init || '') + '" placeholder="iqn.1998-01.com.vmware:esxi01-12345678"><datalist id="f-init-list">' + known.map(function (x) { return '<option value="' + attr(x) + '">'; }).join('') + '</datalist></div>',
         buttons: [{ label: '取消', cls: 'btn-outline' }, { label: '添加 ACL', onClick: function () {
           return runIn('add_acl', { wwn: d.wwn, initiator: val('f-init') }, '客户端已添加');
         } }]
@@ -502,9 +501,8 @@ var iSCSI = (function () {
       modal({
         title: 'CHAP 身份验证',
         body: '<dl class="kv"><dt>目标</dt><dd>' + esc(shortName(d.wwn)) + '</dd><dt>客户端</dt><dd>' + esc(d.init) + '</dd></dl>' +
-          '<div class="fg"><div class="row"><div><label>CHAP 用户名</label><input type="text" id="f-cu" class="mono" autocomplete="off" value="' + attr(a.chap_userid || '') + '"></div><div><label>CHAP 密码（12 至 16 个字符）</label><input type="text" id="f-cp" class="mono" autocomplete="off"></div></div></div>' +
-          '<div class="fg"><div class="row"><div><label>双向 CHAP 用户名（可选）</label><input type="text" id="f-mu" class="mono" autocomplete="off"></div><div><label>双向 CHAP 密码（12 至 16 个字符）</label><input type="text" id="f-mp" class="mono" autocomplete="off"></div></div></div>' +
-          '<p class="help">设置 CHAP 会为整个目标启用身份验证，此目标中的每个 ACL 都需要配置凭据。仅可使用英文字母、数字和 <code>. : _ + -</code>。已有密码不会显示。</p>',
+          '<div class="fg"><div class="row"><div><label>CHAP 用户名 ' + hint('启用后，此目标的每个 ACL 都需配置凭据。支持英文字母、数字和 . : _ + -；已有密码不回显。') + '</label><input type="text" id="f-cu" class="mono" autocomplete="off" value="' + attr(a.chap_userid || '') + '"></div><div><label>CHAP 密码（12 至 16 个字符）</label><input type="text" id="f-cp" class="mono" autocomplete="off"></div></div></div>' +
+          '<div class="fg"><div class="row"><div><label>双向 CHAP 用户名（可选）</label><input type="text" id="f-mu" class="mono" autocomplete="off"></div><div><label>双向 CHAP 密码（12 至 16 个字符）</label><input type="text" id="f-mp" class="mono" autocomplete="off"></div></div></div>',
         buttons: [
           { label: '取消', cls: 'btn-outline' },
           { label: '清除 CHAP', cls: 'btn-outline', onClick: function () { return runIn('set_chap', { wwn: d.wwn, initiator: d.init, clear: true }, 'CHAP 已清除'); } },
@@ -541,8 +539,7 @@ var iSCSI = (function () {
       modal({
         title: '添加监听地址',
         body: '<p class="muted mono">' + esc(d.wwn) + '</p>' +
-          '<div class="fg"><div class="row"><div style="flex:2"><label>IP 地址</label><input type="text" id="f-ip" class="mono" value="0.0.0.0"></div><div><label>端口</label><input type="number" id="f-port" class="mono" value="3260" min="1" max="65535"></div></div></div>' +
-          '<p class="help"><code>0.0.0.0</code> 表示监听全部 IPv4 地址。指定具体地址可将目标限制在某个网络接口上，例如专用存储 VLAN。</p>',
+          '<div class="fg"><div class="row"><div style="flex:2"><label>IP 地址 ' + hint('0.0.0.0 监听全部 IPv4 地址；填写具体 IP 可限定网络接口。') + '</label><input type="text" id="f-ip" class="mono" value="0.0.0.0"></div><div><label>端口</label><input type="number" id="f-port" class="mono" value="3260" min="1" max="65535"></div></div></div>',
         buttons: [{ label: '取消', cls: 'btn-outline' }, { label: '添加监听地址', onClick: function () {
           return runIn('add_portal', { wwn: d.wwn, ip: val('f-ip'), port: +val('f-port') }, '监听地址已添加');
         } }]

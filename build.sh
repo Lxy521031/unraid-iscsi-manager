@@ -103,7 +103,8 @@ DESC
 
 # ---- 4. package ---------------------------------------------------------------
 mkdir -p "$OUT"
-rm -f "$OUT/$NAME-"*.txz "$OUT/$NAME-"*.txz.md5
+# Keep earlier builds for rollback and release history.
+rm -f "$OUT/$NAME-$VER.txz" "$OUT/$NAME-$VER.txz.md5"
 tar --owner=root --group=root --numeric-owner --mtime="@$(date +%s)" \
     -cJf "$OUT/$NAME-$VER.txz" -C "$STAGE" .
 MD5=$(md5sum "$OUT/$NAME-$VER.txz" | cut -d' ' -f1)

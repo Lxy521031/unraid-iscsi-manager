@@ -70,6 +70,28 @@ def read_file(path, default=''):
         return default
 
 
+def create_image_parent(parent, storage_root='/mnt'):
+    """Create missing image directories only beneath mounted Unraid storage."""
+    parent = os.path.realpath(parent)
+    storage_root = os.path.realpath(storage_root)
+    if not parent.startswith(storage_root + os.sep):
+        raise UserError('自动创建目录仅支持 /mnt 下已挂载的存储路径')
+    ancestor = parent
+    while not os.path.exists(ancestor):
+        ancestor = os.path.dirname(ancestor)
+    if not os.path.isdir(ancestor):
+        raise UserError('路径中的 %s 是文件，不能创建子目录' % ancestor)
+    mount = ancestor
+    while mount != storage_root and not os.path.ismount(mount):
+        mount = os.path.dirname(mount)
+    if mount == storage_root:
+        raise UserError('目标存储未挂载；请先启动阵列或挂载存储池，再创建目录')
+    try:
+        os.makedirs(parent, mode=0o755, exist_ok=True)
+    except OSError as exc:
+        raise UserError('无法创建目录 %s：%s' % (parent, exc))
+
+
 def need(params, key, regex, label=None):
     val = str(params.get(key, '')).strip()
     if not val or not regex.match(val):
@@ -420,6 +442,8 @@ def act_create_backstore(lib, root, p):
         raise UserError('后端存储 %s/%s 已存在' % (btype, name))
     write_back = bool(p.get('write_back', False))
     if btype == 'fileio':
+        if write_back and p.get('fua_compat'):
+            raise UserError('FUA 兼容必须使用同步直写模式')
         if os.path.isdir(path):
             raise UserError('%s 是目录；请输入完整的镜像文件路径' % path)
         size = None
@@ -433,9 +457,13 @@ def act_create_backstore(lib, root, p):
             if not str(p.get('size', '')).strip():
                 raise UserError('创建新镜像文件时必须指定容量')
             size = parse_size(p.get('size'))
+            if size <= 0:
+                raise UserError('新镜像容量必须大于 0')
             parent = os.path.dirname(path)
             if not os.path.isdir(parent):
-                raise UserError('目录 %s 不存在' % parent)
+                if not p.get('create_parent', False):
+                    raise UserError('目录 %s 不存在；请先创建目录，或勾选“自动创建缺失的父目录”' % parent)
+                create_image_parent(parent)
             try:
                 st = os.statvfs(parent)
                 free = st.f_bavail * st.f_frsize
@@ -443,8 +471,6 @@ def act_create_backstore(lib, root, p):
                 free = None
             if free is not None and size > free and not p.get('allow_overcommit', True):
                 raise UserError('可用空间不足：需要 %s，剩余 %s' % (human(size), human(free)))
-        if write_back and p.get('fua_compat'):
-            raise UserError('FUA 兼容必须使用同步直写模式')
         so = lib.FileIOStorageObject(name, dev=path, size=size, write_back=write_back)
         if p.get('fua_compat'):
             try:

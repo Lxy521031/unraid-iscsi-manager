@@ -26,7 +26,7 @@ https://raw.githubusercontent.com/Lxy521031/unraid-iscsi-manager/fix/fua-persist
 ## 直接提供虚拟磁盘
 
 1. 在阵列或存储池中准备专用目录。先确认实际空间、共享设置和 mover 策略；正在使用的镜像不应由 mover 搬动。
-2. 点「新建后端存储」，选择「镜像文件（fileio）」，设置英文名称、完整 `.img` 路径及容量，例如 `20G`。默认使用直写缓存。
+2. 点「新建后端存储」，选择「镜像文件（fileio）」，设置英文名称、完整 `.img` 路径及容量，例如 `20G`。默认使用直写缓存。父目录尚不存在时，可勾选“自动创建缺失的父目录”，支持 `/mnt` 下已挂载存储中的多级目录。创建失败时已建立的目录保留，不自动删除。
 3. 点「新建目标」，保留「受限」模式。创建目标后，在监听地址中选择要使用的存储网络 IP 和端口 `3260`。
 4. 将镜像挂接为 LUN，再添加 Mac 客户端的 IQN 至客户端 ACL。
 5. 在 Mac 的 iSCSI 客户端连接 Unraid 地址。仅对新建的测试盘进行格式化；如已有数据的磁盘提示未格式化，请先停止写入并检查映射。
@@ -59,7 +59,7 @@ https://raw.githubusercontent.com/Lxy521031/unraid-iscsi-manager/fix/fua-persist
 
 ## 构建
 
-Linux 下运行 `./build.sh 2026.11.11.3`。macOS 需要 GNU tar、GNU sed、GNU coreutils、xz 和 Python 3，并将 GNU 工具的 `libexec/gnubin` 放在 PATH 最前。打包产物位于 `packages/`；发布版本、`.plg` 和发行资产必须一致。
+Linux 下运行 `./build.sh 2026.11.11.4`。macOS 需要 GNU tar、GNU sed、GNU coreutils、xz 和 Python 3，并将 GNU 工具的 `libexec/gnubin` 放在 PATH 最前。打包产物位于 `packages/`；发布版本、`.plg` 和发行资产必须一致。
 
 ## 本次验证范围
 
@@ -68,3 +68,9 @@ Linux 下运行 `./build.sh 2026.11.11.3`。macOS 需要 GNU tar、GNU sed、GNU
 - 使用两个未导出的临时 8 MiB 后端验证命令行保存及 rtslib 恢复：同步后端恢复为 O_DSYNC、WCE=1、FUA=1；回写后端保持 Buffered-WCE。临时后端已清理，未覆盖在用配置。
 - 页面确认缓存选项顺序和单个 Mac 客户端计数；现有 APFS 卷中两个测试文件 SHA-256 一致。
 - FUA 兼容此前已验证 Mac 每次写入、安全推出和重新连接。未测试整机重启、真实断电或长期负载；未声称这些场景已通过。
+
+## 版本留档说明
+
+- `2026.11.11.2` 是本地构建并安装验证的中间版本，没有独立 Git 提交或 GitHub Release；其 FUA 功能代码已包含在 `436b617`（2026.11.11.3）中。不会将新版代码重新标成旧版来补造历史。
+- `2026.11.11.3` 为已发布的 FUA 保存与客户端计数修复版。
+- `2026.11.11.4` 新增可选的父目录自动创建，表单说明改为 ⓘ 悬停提示；构建脚本保留其他版本的安装包，避免后续构建清除本地旧包。13 项自动测试通过。
